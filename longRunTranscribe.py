@@ -110,55 +110,56 @@ def transcribe_setup():
 
         #################
 
-        CONFIDENCE_THRESHOLD = 0.5
-        i=0
-        SAMPLE_RATE = 8000
-        for uri in filelist:
-            if uri.endswith(".wav"):
-                with open(os.path.join(out_dir,"transcript_confidence_" + uri.split("/")[-1].split(".")[0] + ".csv"),"wb") as csvout:
-                    print(uri)
+    CONFIDENCE_THRESHOLD = 0.5
+    i=0
+    SAMPLE_RATE = 8000
+    for uri in filelist:
+        if uri.endswith(".wav"):
+            with open(os.path.join(out_dir,"transcript_confidence_" + uri.split("/")[-1].split(".")[0] + ".csv"),"wb") as csvout:
+                print(uri)
 
-                    csvwriter = csv.writer(csvout)
-                    fieldnames = ['transcript', 'confidence']
-                    csvwriter = csv.DictWriter(csvout, fieldnames=fieldnames)
-                    csvwriter.writeheader()
+                csvwriter = csv.writer(csvout)
+                fieldnames = ['transcript', 'confidence']
+                csvwriter = csv.DictWriter(csvout, fieldnames=fieldnames)
+                csvwriter.writeheader()
 
+                try:
+                    response = gc_async_transcribe(uri)
+                    #time.sleep(60)
+                    print("From the main function:\n" + str(response))
+                except httplib2.ServerNotFoundError:
+                    print("ServerNotFoundError : Please check the internet connection")
+                    print("%d files converted. Exiting" % i)
+                    break
+
+                except Exception as e:
+                    print(str(e))
+
+
+                if not bool(response):
                     try:
-                        response = gc_async_transcribe(uri)
-			#time.sleep(60)
-			print("From the main function:\n" + str(response))
-                    except httplib2.ServerNotFoundError:
-                        print("ServerNotFoundError : Please check the internet connection")
-                        print("%d files converted. Exiting" % i)
-                        break
+                        writer.writerow({'fileName': uri, 'transcript': "NA"})
+                    except UnboundLocalError:
+                        print("Response not recevived yet???")
+                        #print(response)
+                        continue
 
-                    except Exception as e:
-                        print(str(e))
+                transcript = []
+                for r in response['results']:
+                    confidence = r['alternatives'][0]['confidence']
+                    trans = r['alternatives'][0]['transcript']
+                    csvwriter.writerow({'transcript': trans, 'confidence':confidence})
 
-                    try:
-            			if not bool(response):
-                            writer.writerow({'fileName': uri, 'transcript': "NA"})
-            		    except UnboundLocalError:
-            			print("Response not recevived yet???")
-            			#print(response)
-            			continue
+                    if(confidence > CONFIDENCE_THRESHOLD):
+                        transcript.append(trans)
 
-                    transcript = []
-                    for r in response['results']:
-                        confidence = r['alternatives'][0]['confidence']
-                        trans = r['alternatives'][0]['transcript']
-                        csvwriter.writerow({'transcript': trans, 'confidence':confidence})
-
-                        if(confidence > CONFIDENCE_THRESHOLD):
-                            transcript.append(trans)
-
-                    if not transcript:
-                        transcript_full = "NA"
-                    transcript_full = "\n".join(transcript)
-                    writer.writerow({'fileName': uri, 'transcript': transcript_full})
-                    i = i +1
-            else:
-                continue
+                if not transcript:
+                    transcript_full = "NA"
+                transcript_full = "\n".join(transcript)
+                writer.writerow({'fileName': uri, 'transcript': transcript_full})
+                i = i +1
+        else:
+            continue
 # [START run_application]
 if __name__ == '__main__':
     transcribe_setup()
