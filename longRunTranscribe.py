@@ -136,12 +136,12 @@ def transcribe_setup():
                         print(str(e))
 
                     try:
-			if not bool(response):
-                        	writer.writerow({'fileName': uri, 'transcript': "NA"})
-		    except UnboundLocalError:
-			print("Response not recevived yet???")
-			#print(response)
-			continue
+            			if not bool(response):
+                            writer.writerow({'fileName': uri, 'transcript': "NA"})
+            		    except UnboundLocalError:
+            			print("Response not recevived yet???")
+            			#print(response)
+            			continue
 
                     transcript = []
                     for r in response['results']:
