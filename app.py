@@ -17,7 +17,7 @@ from werkzeug import secure_filename
 
 from lib.upload_file import uploadfile
 import datetime
-
+import subprocess
 import longRunTranscribe as lt
 
 
@@ -78,17 +78,24 @@ def create_thumbnail(image):
         return False
 
 def upload_to_bucket(folder):
-    cmd = "gsutil rsync -r gs://datasphere-147517.appspot.com/Audio_Data " + folder
-    subprocess.call(cmd, shell = True)
+    try:
+        cmd = "gsutil rsync -r gs://datasphere-147517.appspot.com/Audio_Data " + folder
+        subprocess.call(cmd, shell = True)
+        print("trying to upload to bucket")
+        return 0
+    except Exception as e:
+        print(e)
+        return 1
 
-@app.route("/new_session",methods = ['GET','POST'])
-def new_session():
-    #create folder
-    app.config['UPLOAD_FOLDER'] = gen_folder_name()
+#
+# @app.route("/new_session",methods = ['GET','POST'])
+# def new_session():
+#     #create folder
+#     app.config['UPLOAD_FOLDER'] = gen_folder_name()
 
 
-@app.route("/upload_all", methods=['GET', 'POST'])
-def upload_all():
+@app.route("/upload", methods=['GET', 'POST'])
+def upload():
     if request.method == 'POST':
         files = request.files['file']
 
@@ -116,6 +123,8 @@ def upload_all():
                 # return json for js call back
                 result = uploadfile(name=filename, type=mime_type, size=size)
 
+            upload_to_bucket(app.config['UPLOAD_FOLDER'])
+            lt.transcribe_setup()
             return simplejson.dumps({"files": [result.get_file()]})
 
     if request.method == 'GET':
@@ -128,7 +137,9 @@ def upload_all():
             size = os.path.getsize(os.path.join(app.config['UPLOAD_FOLDER'], f))
             file_saved = uploadfile(name=f, size=size)
             file_display.append(file_saved.get_file())
+        upload_to_bucket(app.config['UPLOAD_FOLDER'])
 
+        lt.transcribe_setup()
         return simplejson.dumps({"files": file_display})
 
     return redirect(url_for('index'))

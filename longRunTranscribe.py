@@ -28,6 +28,7 @@ import csv
 import googleapiclient.discovery
 import httplib2
 import time
+import datetime
 
 from subprocess import check_output
 import os
@@ -87,14 +88,14 @@ def gc_async_transcribe(speech_uri):
         response = response["response"]
 	return(response)
 
-def main():
-    source_uri = "gs://datasphere-147517.appspot.com/"
-    
-    out_dir = "../output/"+source_uri.split("/")[-2]
+def transcribe_setup():
+
+    source_uri = "gs://datasphere-147517.appspot.com/Audio_Data"
+    out_dir = "output/"
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
-    with open(os.path.join(out_dir,"Complete_Transcipt_" + source_uri.split("/")[-2].split(".")[0] + ".csv"),"wb") as outfile:
+    with open(os.path.join(out_dir,"Complete_Transcipt_" + datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + ".csv"),"wb") as outfile:
         writer = csv.writer(outfile)
         fieldnames = ['fileName', 'transcript']
         writer = csv.DictWriter(outfile, fieldnames=fieldnames)
@@ -160,5 +161,5 @@ def main():
                 continue
 # [START run_application]
 if __name__ == '__main__':
-    main()
+    transcribe_setup()
     # [END run_application]
