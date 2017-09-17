@@ -16,15 +16,19 @@ from flask_bootstrap import Bootstrap
 from werkzeug import secure_filename
 
 from lib.upload_file import uploadfile
+import datetime
+
+import longRunTranscribe as lt
+
 
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'hard to guess string'
+app.config['SECRET_KEY'] = 'picklerick'
 app.config['UPLOAD_FOLDER'] = 'data/'
 app.config['THUMBNAIL_FOLDER'] = 'data/thumbnail/'
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
 
-ALLOWED_EXTENSIONS = set(['txt', 'gif', 'png', 'jpg', 'jpeg', 'bmp', 'rar', 'zip', '7zip', 'doc', 'docx'])
+ALLOWED_EXTENSIONS = set(['wav','flac','mp3','avi'])
 IGNORED_FILES = set(['.gitignore'])
 
 bootstrap = Bootstrap(app)
@@ -37,7 +41,7 @@ def allowed_file(filename):
 
 def gen_file_name(filename):
     """
-    If file was exist already, rename it and return a new name
+    If file exists already, rename it and return a new name
     """
 
     i = 1
@@ -47,6 +51,15 @@ def gen_file_name(filename):
         i += 1
 
     return filename
+
+def gen_folder_name():
+    upload_dir = os.path.join("data/",datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+    try:
+        os.makedirs(upload_dir)
+        return upload_dir
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise  # This was not a "directory exist" error..
 
 
 def create_thumbnail(image):
@@ -64,9 +77,18 @@ def create_thumbnail(image):
         print traceback.format_exc()
         return False
 
+def upload_to_bucket(folder):
+    cmd = "gsutil rsync -r gs://datasphere-147517.appspot.com/Audio_Data " + folder
+    subprocess.call(cmd, shell = True)
 
-@app.route("/upload", methods=['GET', 'POST'])
-def upload():
+@app.route("/new_session",methods = ['GET','POST'])
+def new_session():
+    #create folder
+    app.config['UPLOAD_FOLDER'] = gen_folder_name()
+
+
+@app.route("/upload_all", methods=['GET', 'POST'])
+def upload_all():
     if request.method == 'POST':
         files = request.files['file']
 
@@ -79,6 +101,7 @@ def upload():
                 result = uploadfile(name=filename, type=mime_type, size=0, not_allowed_msg="File type not allowed")
 
             else:
+
                 # save file to disk
                 uploaded_file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 files.save(uploaded_file_path)
@@ -86,19 +109,19 @@ def upload():
                 # create thumbnail after saving
                 if mime_type.startswith('image'):
                     create_thumbnail(filename)
-                
+
                 # get file size after saving
                 size = os.path.getsize(uploaded_file_path)
 
                 # return json for js call back
                 result = uploadfile(name=filename, type=mime_type, size=size)
-            
+
             return simplejson.dumps({"files": [result.get_file()]})
 
     if request.method == 'GET':
         # get all file in ./data directory
         files = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) if os.path.isfile(os.path.join(app.config['UPLOAD_FOLDER'],f)) and f not in IGNORED_FILES ]
-        
+
         file_display = []
 
         for f in files:
@@ -122,7 +145,7 @@ def delete(filename):
 
             if os.path.exists(file_thumb_path):
                 os.remove(file_thumb_path)
-            
+
             return simplejson.dumps({filename: 'True'})
         except:
             return simplejson.dumps({filename: 'False'})
